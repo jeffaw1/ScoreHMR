@@ -11,7 +11,7 @@ from score_hmr.utils import *
 from score_hmr.configs import model_config
 from score_hmr.utils.geometry import aa_to_rotmat
 from score_hmr.models.model_utils import load_diffusion_model, load_pare
-from score_hmr.utils.mesh_renderer import MeshRenderer
+#from score_hmr.utils.mesh_renderer import MeshRenderer
 
 warnings.filterwarnings('ignore')
 
@@ -80,7 +80,7 @@ def main():
 
 
     # Set up renderer.
-    renderer = MeshRenderer(model_cfg, faces=diffusion_model.smpl.faces)
+    #renderer = MeshRenderer(model_cfg, faces=diffusion_model.smpl.faces)
 
 
     ## Iterate over shots in the video ##
