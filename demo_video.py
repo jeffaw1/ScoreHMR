@@ -109,7 +109,59 @@ def main():
         ## Iterate over tracklets ##
 
         for track_idx in range(num_tracks):
-            # ... [rest of the tracklet processing code remains unchanged] ...
+            # Get the the data for the current tracklet.
+            batch = slice_dict(obs_data, track_idx)
+            start_idx, end_idx = batch["track_interval"]
+            start_idx = start_idx.item()
+            end_idx = end_idx.item()
+
+            # Keep only the valid data of the tracklet.
+            batch = slice_dict_start_end(batch, start_idx, end_idx)
+            batch_size = batch["keypoints_2d"].size(0)
+            batch["img_size"] = (
+                torch.Tensor(dataset.img_size)
+                .unsqueeze(0)
+                .repeat(batch_size, 1)
+                .to(device)
+            )
+            batch["camera_center"] = batch["img_size"] / 2
+            global_orient_rotmat = aa_to_rotmat(batch["init_root_orient"]).reshape(batch_size, -1, 3, 3)
+            body_pose_rotmat = aa_to_rotmat(batch["init_body_pose"].reshape(-1, 3)).reshape(batch_size, -1, 3, 3)
+            batch["pred_pose"] = torch.cat((global_orient_rotmat, body_pose_rotmat), dim=1)
+            focal_length = model_cfg.EXTRA.FOCAL_LENGTH * torch.ones(
+                batch_size,
+                2,
+                device=device,
+                dtype=batch["keypoints_2d"].dtype,
+            )
+            batch["focal_length"] = focal_length
+
+            # Get PARE image features.
+            with torch.no_grad():
+                pare_out = pare(batch["img"], get_feats=True)
+            cond_feats = pare_out["pose_feats"].reshape(batch_size, -1)
+            cond_feats = img_feat_standarizer(cond_feats) # normalize image features
+
+            batch["init_cam_t"] = batch["pred_cam_t"]
+            batch["joints_2d"] = batch["keypoints_2d"][:, :, :2]
+            batch["joints_conf"] = batch["keypoints_2d"][:, :, [2]]
+
+            # Iterative refinement with ScoreHMR.
+            print(f'=> Running ScoreHMR for tracklet {track_idx+1}/{num_tracks}')
+            with torch.no_grad():
+                dm_out = diffusion_model.sample(
+                    batch, cond_feats, batch_size=batch_size * NUM_SAMPLES
+                )
+
+            pred_smpl_params = prepare_smpl_params(
+                dm_out['x_0'],
+                num_samples = NUM_SAMPLES,
+                use_betas = False,
+                pred_betas=batch["pred_betas"],
+            )
+            smpl_out = diffusion_model.smpl(**pred_smpl_params, pose2rot=False)
+            pred_cam_t_all[track_idx, start_idx:end_idx] = dm_out['camera_translation'].cpu()
+            pred_vertices_all[track_idx, start_idx:end_idx] = smpl_out.vertices.cpu()
 
             # Comment out the mesh saving part
             # if args.save_mesh:
