@@ -137,7 +137,7 @@ def main():
         pred_trans_f = pred_trans[id]
 
         bbox =  boxes_arr[id][track_id]
-        bbox = bbox.cpu().numpy()
+        bbox = bbox
         x1, y1, x2, y2, score = bbox
         valid_idx = (True) & (score > 0.5)
         pred_bboxes = bbox[:4].reshape(1,4) 
