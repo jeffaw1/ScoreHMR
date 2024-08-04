@@ -76,7 +76,17 @@ class ViTPoseModel(object):
         box_score_threshold: float = 0.5,
     ) -> list[dict[str, np.ndarray]]:
         image = image[:, :, ::-1]  # RGB -> BGR
+        print(det_results)
+        '''person_results = []
+        for bbox in det_results:
+            print('check bbox for loop', bbox)
+            person = {}
+            person['bbox'] = bbox
+            person_results.append(person)'''
+
         person_results = process_mmdet_results(det_results, 1)
+        print(person_results)
+
         out, _ = inference_top_down_pose_model(
             self.model,
             image,
@@ -104,3 +114,4 @@ class ViTPoseModel(object):
             thickness=vis_line_thickness,
         )
         return vis[:, :, ::-1]  # BGR -> RGB
+
