@@ -24,35 +24,38 @@ LIGHT_BLUE=(0.65098039,  0.74117647,  0.85882353)
 
 def main():
     parser = argparse.ArgumentParser(description='HMR2 demo code')
-    parser.add_argument('--img_folder', type=str, default='example_data/images', help='Folder with input images')
+    parser.add_argument('--root_dir', type=str, default='/content/drive/MyDrive/12345_final_test/videos/Arc_Shot_Inglourious_Basterds_2009_trim/', help='Folder with input images')
     parser.add_argument('--out_folder', type=str, default='demo_out/images', help='Output folder to save rendered results')
+    parser.add_argument('--track_id', type=int, default=0, help='id person tracked by bboxes')
     args = parser.parse_args()
-
+    
+    root_dir = args.root_dir
+    
     # Download and load checkpoints.
     download_models(CACHE_DIR_4DHUMANS)
     # Copy SMPL model to the appropriate path for HMR 2.0 if it does not exist.
     if not os.path.isfile(f'{CACHE_DIR_4DHUMANS}/data/smpl/SMPL_NEUTRAL.pkl'):
         shutil.copy('data/smpl/SMPL_NEUTRAL.pkl', f'{CACHE_DIR_4DHUMANS}/data/smpl/')
-    hmr2_model, model_cfg_hmr2 = load_hmr2(DEFAULT_CHECKPOINT)
+    #hmr2_model, model_cfg_hmr2 = load_hmr2(DEFAULT_CHECKPOINT)
 
     # Setup HMR2.0 model.
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    hmr2_model = hmr2_model.to(device)
-    hmr2_model.eval()
+    #hmr2_model = hmr2_model.to(device)
+    #hmr2_model.eval()
 
     # Set up keypoint detector.
     kp_detector = ViTPoseModel(device)
 
     # Load human detector.
-    from hmr2.utils.utils_detectron2 import DefaultPredictor_Lazy
-    from detectron2.config import LazyConfig
-    import hmr2
-    cfg_path = Path(hmr2.__file__).parent/'configs'/'cascade_mask_rcnn_vitdet_h_75ep.py'
-    detectron2_cfg = LazyConfig.load(str(cfg_path))
-    detectron2_cfg.train.init_checkpoint = "https://dl.fbaipublicfiles.com/detectron2/ViTDet/COCO/cascade_mask_rcnn_vitdet_h/f328730692/model_final_f05665.pkl"
-    for i in range(3):
-        detectron2_cfg.model.roi_heads.box_predictors[i].test_score_thresh = 0.25
-    detector = DefaultPredictor_Lazy(detectron2_cfg)
+    #from hmr2.utils.utils_detectron2 import DefaultPredictor_Lazy
+    #from detectron2.config import LazyConfig
+    #import hmr2
+    #cfg_path = Path(hmr2.__file__).parent/'configs'/'cascade_mask_rcnn_vitdet_h_75ep.py'
+    #detectron2_cfg = LazyConfig.load(str(cfg_path))
+    #detectron2_cfg.train.init_checkpoint = "https://dl.fbaipublicfiles.com/detectron2/ViTDet/COCO/cascade_mask_rcnn_vitdet_h/f328730692/model_final_f05665.pkl"
+    #for i in range(3):
+    #    detectron2_cfg.model.roi_heads.box_predictors[i].test_score_thresh = 0.25
+    #detector = DefaultPredictor_Lazy(detectron2_cfg)
 
     # Setup the renderer
     renderer = Renderer(model_cfg_hmr2, faces=hmr2_model.smpl.faces)
@@ -89,24 +92,69 @@ def main():
     # Make output directory if it does not exist.
     os.makedirs(args.out_folder, exist_ok=True)
 
+    hps_file = root_dir +f'hps/vimo_track_{track_id}.npy'
+    bbox_file = root_dir + 'boxes.npy'
+    # Load bounding box information
+    bbox_data = np.load(bbox_file, allow_pickle=True)
+
+    smpl_data = np.load(hps_file, allow_pickle=True).item()
+    pred_cam = smpl_data['pred_cam']
+    pred_pose = smpl_data['pred_pose']
+    pred_shape = smpl_data['pred_shape']
+    pred_rotmat = smpl_data['pred_rotmat']
+    pred_trans = smpl_data['pred_trans']
+    frame = smpl_data['frame']
+
+    # Initialize lists to store results
+    new_pred_cam = []
+    new_pred_pose = []
+    new_pred_shape = []
+    new_pred_rotmat = []
+    new_pred_trans = []
+    new_frame = []
+    new_keypoints_2d = []
+    new_bboxes = []
+
+    # Create a VideoWriter object
+    first_image_path = f'{root_dir}images/{frame[0]:04d}.jpg'
+    first_image = cv2.imread(first_image_path)
+    height, width, _ = first_image.shape
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_out = cv2.VideoWriter(os.path.join(args.out_folder, 'output_video.mp4'), fourcc, 30, (width, height))
 
     # Iterate over all images in folder.
-    for img_path in Path(args.img_folder).glob('*.jpg'):
-        img_fn, _ = os.path.splitext(os.path.basename(img_path))
-        img_cv2 = cv2.imread(str(img_path))
+    for id, f in enumerate(frame):
+        img_fn = f'{f:04d}.jpg'
+        image_path = f'{root_dir}images/{img_fn}'
+        img_cv2 = cv2.imread(image_path)
+        #img_fn, _ = os.path.splitext(os.path.basename(img_path))
+        #img_cv2 = cv2.imread(str(img_path))
 
+        pred_cam_f = pred_cam[id] 
+        pred_pose_f = pred_pose[id]
+        pred_shape_f = pred_shape[id]
+        pred_rotmat_f = pred_rotmat[id]
+        pred_trans_f = pred_trans[id]
+
+        bbox =  boxes_arr[id][track_id]
+        bbox = bbox.cpu().numpy()
+        x1, y1, x2, y2, score = bbox
+        valid_idx = (True) & (score > 0.5)
+        pred_bboxes = bbox[:4].reshape(1,4) 
+
+        
         # Detect humans in image.
-        det_out = detector(img_cv2)
+        #det_out = detector(img_cv2)
 
-        det_instances = det_out['instances']
-        valid_idx = (det_instances.pred_classes==0) & (det_instances.scores > 0.5)
-        pred_bboxes=det_instances.pred_boxes.tensor[valid_idx].cpu().numpy()
-        pred_scores=det_instances.scores[valid_idx].cpu().numpy()
+        #det_instances = det_out['instances']
+        #valid_idx = (det_instances.pred_classes==0) & (det_instances.scores > 0.5)
+        #pred_bboxes=det_instances.pred_boxes.tensor[valid_idx].cpu().numpy()
+        #pred_scores=det_instances.scores[valid_idx].cpu().numpy()
 
         # Detect keypoints for each person.
         vitposes_out = kp_detector.predict_pose(
             img_cv2[:, :, ::-1],
-            [np.concatenate([pred_bboxes, pred_scores[:, None]], axis=1)],
+            [bbox],
         )
         vitposes_list = []
         for vitpose in vitposes_out:
@@ -119,26 +167,26 @@ def main():
 
 
         # Create separate dataset of HMR 2.0 and ScoreHMR, since the input should be of different resolution.
-        dataset_hmr2 = ViTDetDataset(model_cfg_hmr2, img_cv2, pred_bboxes)
-        dataloader_hmr2 = torch.utils.data.DataLoader(dataset_hmr2, batch_size=pred_bboxes.shape[0], shuffle=False, num_workers=0)
+        #dataset_hmr2 = ViTDetDataset(model_cfg_hmr2, img_cv2, pred_bboxes)
+        #dataloader_hmr2 = torch.utils.data.DataLoader(dataset_hmr2, batch_size=pred_bboxes.shape[0], shuffle=False, num_workers=0)
 
         dataset = ViTDetDataset(model_cfg_hmr2, img_cv2, pred_bboxes, body_keypoints_2d, is_hmr2=False)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=pred_bboxes.shape[0], shuffle=False, num_workers=0)
 
         # Get predictions from HMR 2.0
-        hmr2_batch = recursive_to(next(iter(dataloader_hmr2)), device)
-        with torch.no_grad():
-            out = hmr2_model(hmr2_batch)
+        #hmr2_batch = recursive_to(next(iter(dataloader_hmr2)), device)
+        #with torch.no_grad():
+        #    out = hmr2_model(hmr2_batch)
 
-        pred_cam = out['pred_cam']
-        batch_size = pred_cam.shape[0]
-        box_center = hmr2_batch["box_center"].float()
-        box_size = hmr2_batch["box_size"].float()
-        img_size = hmr2_batch["img_size"].float()
-        pred_cam_t_full = cam_crop_to_full(pred_cam, box_center, box_size, img_size)
+        #pred_cam = out['pred_cam']
+        #batch_size = pred_cam.shape[0]
+        #box_center = hmr2_batch["box_center"].float()
+        #box_size = hmr2_batch["box_size"].float()
+        #img_size = hmr2_batch["img_size"].float()
+        #pred_cam_t_full = cam_crop_to_full(pred_cam, box_center, box_size, img_size)
 
-        hmr2_verts = out['pred_vertices'].cpu().numpy()
-        hmr2_cam_t = pred_cam_t_full.cpu().numpy()
+        #hmr2_verts = out['pred_vertices'].cpu().numpy()
+        #hmr2_cam_t = pred_cam_t_full.cpu().numpy()
 
 
         # Run iterative refinement with ScoreHMR.
@@ -158,9 +206,12 @@ def main():
                 device=device,
                 dtype=batch["keypoints_2d"].dtype,
             )
-        batch['pred_betas'] = out['pred_smpl_params']['betas']
-        batch['pred_pose'] = torch.cat((out['pred_smpl_params']['global_orient'], out['pred_smpl_params']['body_pose']), axis=1)
-        batch["init_cam_t"] = pred_cam_t_full
+        #batch['pred_betas'] = out['pred_smpl_params']['betas']
+        #batch['pred_pose'] = torch.cat((out['pred_smpl_params']['global_orient'], out['pred_smpl_params']['body_pose']), axis=1)
+        #batch["init_cam_t"] = pred_cam_t_full
+        batch['pred_betas'] = pred_shape_f
+        batch['pred_pose'] = pred_pose_f
+        batch["init_cam_t"] = pred_cam_f
 
         # Run ScoreHMR.
         print(f'=> Running ScoreHMR for image: {img_fn}')
@@ -192,6 +243,53 @@ def main():
         input_img_overlay = input_img[:,:,:3] * (1-cam_view[:,:,3:]) + cam_view[:,:,:3] * cam_view[:,:,3:]
         cv2.imwrite(os.path.join(args.out_folder, f'opt_{img_fn}.png'), 255*input_img_overlay[:, :, ::-1])
 
+        # Store the ViTPose keypoints
+        new_keypoints_2d.append(vitposes_list[0])  # Assuming we're only using the first person
+
+        # Store the bbox
+        new_bboxes.append(bbox)
+
+        # Store the results
+        new_pred_cam.append(dm_out['camera_translation'].cpu().numpy())
+        new_pred_pose.append(pred_smpl_params['global_orient'].cpu().numpy())
+        new_pred_shape.append(pred_smpl_params['betas'].cpu().numpy())
+        new_pred_rotmat.append(pred_smpl_params['body_pose'].cpu().numpy())
+        new_pred_trans.append(opt_cam_t)
+        new_frame.append(f)
+
+        output_image = (255*input_img_overlay[:, :, ::-1]).astype(np.uint8)
+        
+        # Save the frame
+        cv2.imwrite(os.path.join(args.out_folder, f'opt_{img_fn}.png'), output_image)
+        
+        # Write the frame to video
+        video_out.write(output_image)
+
+    # Release the VideoWriter
+    video_out.release()
+
+
+    # Save the results in the same format as the input
+    output_data = {
+        'pred_cam': np.array(new_pred_cam),
+        'pred_pose': np.array(new_pred_pose),
+        'pred_shape': np.array(new_pred_shape),
+        'pred_rotmat': np.array(new_pred_rotmat),
+        'pred_trans': np.array(new_pred_trans),
+        'frame': np.array(new_frame),
+        'keypoints_2d': np.array(new_keypoints_2d),
+        'bboxes': np.array(new_bboxes)
+    }
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(os.path.join(args.out_folder, 'hps'), exist_ok=True)
+
+    # Save the output data
+    output_file = os.path.join(args.out_folder, 'hps', f'scorehmr_track_{args.track_id}.npy')
+    np.save(output_file, output_data)
+
+    print(f"Results saved to {output_file}")
+    print(f"Video saved to {os.path.join(args.out_folder, 'output_video.mp4')}")
 
 
 if __name__ == '__main__':
