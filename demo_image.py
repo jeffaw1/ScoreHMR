@@ -30,13 +30,14 @@ def main():
     args = parser.parse_args()
     
     root_dir = args.root_dir
+    track_id = args.track_id
     
     # Download and load checkpoints.
     download_models(CACHE_DIR_4DHUMANS)
     # Copy SMPL model to the appropriate path for HMR 2.0 if it does not exist.
     if not os.path.isfile(f'{CACHE_DIR_4DHUMANS}/data/smpl/SMPL_NEUTRAL.pkl'):
         shutil.copy('data/smpl/SMPL_NEUTRAL.pkl', f'{CACHE_DIR_4DHUMANS}/data/smpl/')
-    #hmr2_model, model_cfg_hmr2 = load_hmr2(DEFAULT_CHECKPOINT)
+    hmr2_model, model_cfg_hmr2 = load_hmr2(DEFAULT_CHECKPOINT)
 
     # Setup HMR2.0 model.
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -136,11 +137,14 @@ def main():
         pred_rotmat_f = pred_rotmat[id]
         pred_trans_f = pred_trans[id]
 
-        bbox =  boxes_arr[id][track_id]
+        bbox =  bbox_data[id][track_id]
         bbox = bbox
         x1, y1, x2, y2, score = bbox
         valid_idx = (True) & (score > 0.5)
-        pred_bboxes = bbox[:4].reshape(1,4) 
+        pred_bboxes = bbox[:4].reshape(1,4)
+        pred_scores = bbox[4].reshape(1,)
+        #pred_bboxes = bbox.reshape(1,5)
+        print('SHAPE pred_bboxes', pred_bboxes.shape)
 
         
         # Detect humans in image.
@@ -154,7 +158,7 @@ def main():
         # Detect keypoints for each person.
         vitposes_out = kp_detector.predict_pose(
             img_cv2[:, :, ::-1],
-            [bbox],
+            [np.concatenate([pred_bboxes, pred_scores[:, None]], axis=1)],
         )
         vitposes_list = []
         for vitpose in vitposes_out:
@@ -187,7 +191,7 @@ def main():
 
         #hmr2_verts = out['pred_vertices'].cpu().numpy()
         #hmr2_cam_t = pred_cam_t_full.cpu().numpy()
-
+        batch_size = 1
 
         # Run iterative refinement with ScoreHMR.
         batch = recursive_to(next(iter(dataloader)), device)
@@ -209,12 +213,21 @@ def main():
         #batch['pred_betas'] = out['pred_smpl_params']['betas']
         #batch['pred_pose'] = torch.cat((out['pred_smpl_params']['global_orient'], out['pred_smpl_params']['body_pose']), axis=1)
         #batch["init_cam_t"] = pred_cam_t_full
-        batch['pred_betas'] = pred_shape_f
-        batch['pred_pose'] = pred_pose_f
-        batch["init_cam_t"] = pred_cam_f
+        batch['pred_betas'] = pred_shape_f.reshape(1,10).cuda() 
+        #batch['pred_pose'] = pred_pose_f
+        batch['pred_pose'] = pred_rotmat_f.reshape(1,24,3,3).cuda() 
+        batch["init_cam_t"] = pred_cam_f.reshape(1,3).cuda() 
+        print(pred_shape_f.shape)
+        print('pred_pose_f:', pred_cam_f.shape)
+        print('pred_rotmat_f:',pred_rotmat_f.shape)
+        print(pred_cam_f.shape)
+        
 
         # Run ScoreHMR.
         print(f'=> Running ScoreHMR for image: {img_fn}')
+        print('batch', batch)
+        print('cond_feats', cond_feats)
+        print('batch_size', batch_size)
         with torch.no_grad():
             dm_out = diffusion_model.sample(
                 batch, cond_feats, batch_size=batch_size
@@ -234,6 +247,7 @@ def main():
 
         # Render front view.
         print(f'=> Rendering image: {img_fn}')
+        img_size = batch["img_size"]
         render_res = img_size[0].cpu().numpy()
         cam_view = renderer.render_rgba_multiple(opt_verts, cam_t=opt_cam_t, render_res=render_res, **misc_args)
 
@@ -294,3 +308,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
