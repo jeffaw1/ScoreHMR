@@ -10,6 +10,8 @@ from hmr2.configs import CACHE_DIR_4DHUMANS
 from hmr2.models import download_models, load_hmr2, DEFAULT_CHECKPOINT
 from hmr2.utils import recursive_to
 from hmr2.utils.renderer import Renderer, cam_crop_to_full
+from tqdm import tqdm  # Add this import
+
 
 from score_hmr.utils import *
 from score_hmr.configs import model_config
@@ -119,7 +121,9 @@ def main():
     os.makedirs(args.out_folder, exist_ok=True)
 
     #################################################################################################    
-    for k, idx in enumerate(tid):
+    #for k, idx in enumerate(tid):
+    for k, idx in tqdm(enumerate(tid), total=len(tid), desc="Processing tracks"):
+
         trk = tracks[idx]
         valid = np.array([t['det'] for t in trk])
         boxes = np.concatenate([t['det_box'] for t in trk])[valid]
@@ -144,14 +148,16 @@ def main():
         height, width, _ = first_image.shape
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         video_out = cv2.VideoWriter(os.path.join(args.out_folder, f'output_video_{idx}.mp4'), fourcc, 24, (width, height))
-        
-        for frame, bbox in zip(frames, boxes):
-            print(frame)
-            print(bbox)
-            print(type(frame))
-            print(bbox.shape)
+        os.makedirs(os.path.join(args.out_folder, f'images_{idx}'), exist_ok=True) 
+
+        #for frame, bbox in zip(frames, boxes):
+        for frame, bbox in tqdm(zip(frames, boxes), total=len(frames), desc=f"Processing track {idx}"):
+            #print(frame)
+            #print(bbox)
+            #print(type(frame))
+            #print(bbox.shape)
             image_path = imgfiles[frame]
-            print(image_path)
+            #print(image_path)
             pred_bboxes = bbox[:4].reshape(1,4)
             pred_scores = bbox[4].reshape(1,)
 
@@ -255,7 +261,7 @@ def main():
     
     
             # Render front view.
-            print(f'=> Rendering image: {img_fn}')
+            #print(f'=> Rendering image: {img_fn}')
             render_res = img_size[0].cpu().numpy()
             cam_view = renderer.render_rgba_multiple(opt_verts, cam_t=opt_cam_t, render_res=render_res, **misc_args)
     
@@ -263,7 +269,7 @@ def main():
             input_img = img_cv2.astype(np.float32)[:,:,::-1]/255.0
             input_img = np.concatenate([input_img, np.ones_like(input_img[:,:,:1])], axis=2) # Add alpha channel
             input_img_overlay = input_img[:,:,:3] * (1-cam_view[:,:,3:]) + cam_view[:,:,:3] * cam_view[:,:,3:]
-            cv2.imwrite(os.path.join(args.out_folder, f'opt_{idx}_{img_fn}.png'), 255*input_img_overlay[:, :, ::-1])
+            cv2.imwrite(os.path.join(args.out_folder, f'images_{idx}' , f'opt_{idx}_{img_fn}'), 255*input_img_overlay[:, :, ::-1])
 
             ########################################################
             # Store the ViTPose keypoints
