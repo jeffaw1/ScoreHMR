@@ -306,8 +306,8 @@ def main():
             'frame': np.array(new_frame),
             'keypoints_2d': np.array(new_keypoints_2d),
             'bboxes': np.array(new_bboxes),
-            'focal_length': np.array(new_focal_length)
-            
+            'focal_length': np.array([f.cpu().numpy() for f in new_focal_length])  # Change this line
+
         }
     
         # Create the output directory if it doesn't exist
