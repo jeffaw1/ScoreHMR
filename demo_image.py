@@ -29,7 +29,7 @@ LIGHT_BLUE=(0.65098039,  0.74117647,  0.85882353)
 
 def main():
     parser = argparse.ArgumentParser(description='HMR2 demo code')
-    parser.add_argument('--vid_folder', type=str, default='/content/drive/MyDrive/12345_final_test/videos/Arc_Shot_Inglourious_Basterds_2009_trim.mp4', help='Path to video file')
+    parser.add_argument('--vid_path', type=str, default='/content/drive/MyDrive/12345_final_test/videos/Arc_Shot_Inglourious_Basterds_2009_trim.mp4', help='Path to video file')
     parser.add_argument('--out_folder', type=str, default='demo_out/images', help='Output folder to save rendered results')
     parser.add_argument('--root_dir', type=str, default='/content/drive/MyDrive/12345_final_test/videos/Arc_Shot_Inglourious_Basterds_2009_trim/', help='Folder with input images')
     parser.add_argument('--track_id', type=int, default=0, help='id person tracked by bboxes')
@@ -37,7 +37,7 @@ def main():
     args = parser.parse_args()
     
     #####################################################################
-    file = args.video_path
+    file = args.vid_path
     root = os.path.dirname(file)
     seq = os.path.basename(file).split('.')[0]
 
@@ -154,6 +154,9 @@ def main():
             print(image_path)
             pred_bboxes = bbox[:4].reshape(1,4)
             pred_scores = bbox[4].reshape(1,)
+
+            img_cv2 = cv2.imread(image_path)
+
     
             # Detect humans in image.
             det_out = detector(img_cv2)
@@ -275,7 +278,7 @@ def main():
             new_pred_shape.append(pred_smpl_params['betas'].cpu().numpy())
             new_pred_rotmat.append(pred_smpl_params['body_pose'].cpu().numpy())
             new_pred_trans.append(opt_cam_t)
-            new_frame.append(f)
+            new_frame.append(frame)
             new_focal_length.append(batch["focal_length"])
 
 
@@ -296,7 +299,7 @@ def main():
             'pred_trans': np.array(new_pred_trans),
             'frame': np.array(new_frame),
             'keypoints_2d': np.array(new_keypoints_2d),
-            'bboxes': np.array(new_bboxes)
+            'bboxes': np.array(new_bboxes),
             'focal_length': np.array(new_focal_length)
             
         }
@@ -309,7 +312,6 @@ def main():
         np.save(output_file, output_data)
     
         print(f"Results saved to {output_file}")
-        print(f"Video saved to {os.path.join(args.out_folder, f'output_video_{idx}.mp4'}")
 
         
 
