@@ -260,8 +260,18 @@ def main():
             opt_cam_t = dm_out['camera_translation'].cpu().numpy()
 
             #####################################################################################################
-            print('dm_out = ',dm_out.keys())
-            print('smpl_out = ',smpl_out.keys())
+            #print('dm_out = ',dm_out['x_0'])
+            #print('smpl_out = ',smpl_out)
+            opt_verts = smpl_out.vertices.cpu().numpy()
+            joints = smpl_out.joints.cpu().numpy()
+            global_orient = smpl_out.global_orient.cpu().numpy()
+            betas = smpl_out.betas.cpu().numpy()
+            body_pose = smpl_out.body_pose.cpu().numpy()
+
+            print(joints.shape)#(1, 44, 3)
+            print(global_orient.shape) #(1, 1, 3, 3)
+            print(betas.shape)  #(1, 10)
+            print(body_pose.shape)  #(1, 23, 3, 3)
             #####################################################################################################
     
             # Render front view.
