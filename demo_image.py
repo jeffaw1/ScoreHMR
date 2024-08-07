@@ -73,15 +73,15 @@ def main():
     kp_detector = ViTPoseModel(device)
 
     # Load human detector.
-    from hmr2.utils.utils_detectron2 import DefaultPredictor_Lazy
-    from detectron2.config import LazyConfig
+    ###from hmr2.utils.utils_detectron2 import DefaultPredictor_Lazy
+    ###from detectron2.config import LazyConfig
     import hmr2
-    cfg_path = Path(hmr2.__file__).parent/'configs'/'cascade_mask_rcnn_vitdet_h_75ep.py'
-    detectron2_cfg = LazyConfig.load(str(cfg_path))
-    detectron2_cfg.train.init_checkpoint = "https://dl.fbaipublicfiles.com/detectron2/ViTDet/COCO/cascade_mask_rcnn_vitdet_h/f328730692/model_final_f05665.pkl"
-    for i in range(3):
-        detectron2_cfg.model.roi_heads.box_predictors[i].test_score_thresh = 0.25
-    detector = DefaultPredictor_Lazy(detectron2_cfg)
+    ###cfg_path = Path(hmr2.__file__).parent/'configs'/'cascade_mask_rcnn_vitdet_h_75ep.py'
+    ###detectron2_cfg = LazyConfig.load(str(cfg_path))
+    ###detectron2_cfg.train.init_checkpoint = "https://dl.fbaipublicfiles.com/detectron2/ViTDet/COCO/cascade_mask_rcnn_vitdet_h/f328730692/model_final_f05665.pkl"
+    ###for i in range(3):
+    ###    detectron2_cfg.model.roi_heads.box_predictors[i].test_score_thresh = 0.25
+    ###detector = DefaultPredictor_Lazy(detectron2_cfg)
 
     # Setup the renderer
     renderer = Renderer(model_cfg_hmr2, faces=hmr2_model.smpl.faces)
@@ -159,21 +159,21 @@ def main():
 
     
             # Detect humans in image.
-            det_out = detector(img_cv2)
+            ###det_out = detector(img_cv2)
     
-            det_instances = det_out['instances']
-            valid_idx = (det_instances.pred_classes==0) & (det_instances.scores > 0.5)
-            pred_bboxes2=det_instances.pred_boxes.tensor[valid_idx].cpu().numpy()
-            pred_scores2=det_instances.scores[valid_idx].cpu().numpy()
+            ###det_instances = det_out['instances']
+            ###valid_idx = (det_instances.pred_classes==0) & (det_instances.scores > 0.5)
+            ###pred_bboxes2=det_instances.pred_boxes.tensor[valid_idx].cpu().numpy()
+            ###pred_scores2=det_instances.scores[valid_idx].cpu().numpy()
 
-            print('detector pred_bboxes2', pred_bboxes2)
-            print('detector pred_scores2', pred_scores2)
-            print('detector shape pred_bboxes2', pred_bboxes2.shape)
-            print('detector shape pred_scores2', pred_scores2.shape)
-            print('track pred_bboxes', pred_bboxes)
-            print('track pred_scores', pred_scores)
-            print('track shape pred_bboxes', pred_bboxes.shape)
-            print('track shape pred_scores', pred_scores.shape)
+            ###print('detector pred_bboxes2', pred_bboxes2)
+            ###print('detector pred_scores2', pred_scores2)
+            ###print('detector shape pred_bboxes2', pred_bboxes2.shape)
+            ###print('detector shape pred_scores2', pred_scores2.shape)
+            ###print('track pred_bboxes', pred_bboxes)
+            ###print('track pred_scores', pred_scores)
+            ###print('track shape pred_bboxes', pred_bboxes.shape)
+            ###print('track shape pred_scores', pred_scores.shape)
             
             # Detect keypoints for each person.
             vitposes_out = kp_detector.predict_pose(
