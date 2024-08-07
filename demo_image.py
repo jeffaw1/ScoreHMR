@@ -258,7 +258,11 @@ def main():
     
             opt_verts = smpl_out.vertices.cpu().numpy()
             opt_cam_t = dm_out['camera_translation'].cpu().numpy()
-    
+
+            #####################################################################################################
+            print('dm_out = ',dm_out.keys())
+            print('smpl_out = ',smpl_out.keys())
+            #####################################################################################################
     
             # Render front view.
             #print(f'=> Rendering image: {img_fn}')
