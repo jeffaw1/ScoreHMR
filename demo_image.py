@@ -268,10 +268,10 @@ def main():
             betas = smpl_out.betas.cpu().numpy()
             body_pose = smpl_out.body_pose.cpu().numpy()
 
-            print(joints.shape)#(1, 44, 3)
-            print(global_orient.shape) #(1, 1, 3, 3)
-            print(betas.shape)  #(1, 10)
-            print(body_pose.shape)  #(1, 23, 3, 3)
+            #print(joints.shape)#(1, 44, 3)
+            #print(global_orient.shape) #(1, 1, 3, 3)
+            #print(betas.shape)  #(1, 10)
+            #print(body_pose.shape)  #(1, 23, 3, 3)
             #####################################################################################################
     
             # Render front view.
@@ -337,11 +337,12 @@ def main():
             'pred_rotmat': np.concatenate(new_pred_rotmat, axis=0),
             'pred_trans': np.concatenate(new_pred_trans, axis=0),
             'smpl_joints_3d': np.concatenate(new_joints, axis=0),
-            'frame': np.concatenate(new_frame, axis=0),
+            'frame': np.array(new_frame),
             'keypoints_2d': np.concatenate(new_keypoints_2d, axis=0),
             'bboxes': np.concatenate(new_bboxes, axis=0),
-            'focal_length': np.concatenate([f.cpu().numpy() for f in new_focal_length], axis=0)
+            'focal_length': np.array([f.cpu().numpy() for f in new_focal_length])  # Change this line
         }
+        print(np.concatenate(new_pred_rotmat, axis=0))
     
         # Create the output directory if it doesn't exist
         os.makedirs(os.path.join(args.out_folder, 'hps'), exist_ok=True)
