@@ -133,7 +133,7 @@ def main():
         
         # Initialize lists to store results
         new_pred_cam = []
-        new_pred_pose = []
+        new_joints = []
         new_pred_shape = []
         new_pred_rotmat = []
         new_pred_trans = []
@@ -291,12 +291,20 @@ def main():
     
             # Store the bbox
             new_bboxes.append(bbox)
-    
+            
+            opt_verts = smpl_out.vertices.cpu().numpy()
+            joints = smpl_out.joints.cpu().numpy()
+            global_orient = smpl_out.global_orient.cpu().numpy()
+            betas = smpl_out.betas.cpu().numpy()
+            body_pose = smpl_out.body_pose.cpu().numpy()
+            pred_rotmat = np.concatenate((global_orient, body_pose), axis=1)
+
+
             # Store the results
             new_pred_cam.append(dm_out['camera_translation'].cpu().numpy())
-            new_pred_pose.append(pred_smpl_params['global_orient'].cpu().numpy())
-            new_pred_shape.append(pred_smpl_params['betas'].cpu().numpy())
-            new_pred_rotmat.append(pred_smpl_params['body_pose'].cpu().numpy())
+            new_joints.append(joints)
+            new_pred_shape.append(betas)
+            new_pred_rotmat.append(pred_rotmat)
             new_pred_trans.append(opt_cam_t)
             new_frame.append(frame)
             new_focal_length.append(batch["focal_length"])
@@ -311,17 +319,28 @@ def main():
         video_out.release()
         
         # Save the results in the same format as the input
-        output_data = {
+        '''output_data = {
             'pred_cam': np.array(new_pred_cam),
-            'pred_pose': np.array(new_pred_pose),
             'pred_shape': np.array(new_pred_shape),
             'pred_rotmat': np.array(new_pred_rotmat),
             'pred_trans': np.array(new_pred_trans),
+            'smpl_joints_3d': np.array(new_joints),
             'frame': np.array(new_frame),
             'keypoints_2d': np.array(new_keypoints_2d),
             'bboxes': np.array(new_bboxes),
             'focal_length': np.array([f.cpu().numpy() for f in new_focal_length])  # Change this line
+        }'''
 
+        output_data = {
+            'pred_cam': np.concatenate(new_pred_cam, axis=0),
+            'pred_shape': np.concatenate(new_pred_shape, axis=0),
+            'pred_rotmat': np.concatenate(new_pred_rotmat, axis=0),
+            'pred_trans': np.concatenate(new_pred_trans, axis=0),
+            'smpl_joints_3d': np.concatenate(new_joints, axis=0),
+            'frame': np.concatenate(new_frame, axis=0),
+            'keypoints_2d': np.concatenate(new_keypoints_2d, axis=0),
+            'bboxes': np.concatenate(new_bboxes, axis=0),
+            'focal_length': np.concatenate([f.cpu().numpy() for f in new_focal_length], axis=0)
         }
     
         # Create the output directory if it doesn't exist
